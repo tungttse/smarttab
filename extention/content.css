@@ -1,0 +1,147 @@
+/* Hilidea Extension Styles */
+
+#hilidea-context-menu {
+  position: absolute;
+  z-index: 10000;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.hilidea-menu-content {
+  padding: 8px;
+}
+
+.hilidea-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.hilidea-save-btn {
+  background: #4285f4;
+  color: white;
+}
+
+.hilidea-save-btn:hover {
+  background: #3367d6;
+}
+
+.hilidea-cancel-btn {
+  background: #f1f3f4;
+  color: #5f6368;
+}
+
+.hilidea-cancel-btn:hover {
+  background: #e8eaed;
+}
+
+#hilidea-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.hilidea-loading-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hilidea-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #4285f4;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+#hilidea-success, #hilidea-error {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 20px;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.hilidea-success-content h3 {
+  margin: 0 0 16px 0;
+  color: #34a853;
+  font-size: 18px;
+}
+
+.hilidea-error-content h3 {
+  margin: 0 0 16px 0;
+  color: #ea4335;
+  font-size: 18px;
+}
+
+.hilidea-ideas-list {
+  margin: 16px 0;
+}
+
+.hilidea-idea {
+  background: #f8f9fa;
+  border-left: 3px solid #4285f4;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.hilidea-close-btn {
+  background: #4285f4;
+  color: white;
+  margin-top: 16px;
+}
+
+.hilidea-close-btn:hover {
+  background: #3367d6;
+}
+
+/* Overlay for modals */
+#hilidea-loading::before,
+#hilidea-success::before,
+#hilidea-error::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: -1;
+}
