@@ -66,7 +66,6 @@ class HilideaBackground {
   }
 
   async loginWithGmail() {
-    console.log('ttt loginWithGmail');
     try {
       // Get OAuth token from Chrome identity API
       const token = await new Promise((resolve, reject) => {
@@ -81,7 +80,6 @@ class HilideaBackground {
 
       // Get user info
       const userInfo = await this.getUserInfo(token);
-      console.log('ttt userInfo', userInfo);
       
       // Store token and user info
       await this.storeToken(token);
@@ -161,11 +159,9 @@ class HilideaBackground {
   }
 
   async saveHighlightedText(text, url, title) {
-    console.log('ttt saveHighlightedText', text, url, title);
     try {
       // Check if user is logged in
       const loginStatus = await this.getLoginStatus();
-      console.log('ttt loginStatus', loginStatus);
       if (!loginStatus.loggedIn) {
         return {
           success: false,

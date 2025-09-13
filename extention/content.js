@@ -1,4 +1,10 @@
 // Content script for text highlighting and context menu
+function clearSelection() {
+  if (window.getSelection) {
+    window.getSelection().removeAllRanges();
+  }
+}
+
 class TextHighlighter {
   constructor() {
     this.selectedText = '';
@@ -9,28 +15,36 @@ class TextHighlighter {
   init() {
     // Listen for text selection
     document.addEventListener('mouseup', this.handleTextSelection.bind(this));
-    document.addEventListener('keyup', this.handleTextSelection.bind(this));
-    
+    // document.addEventListener('keyup', this.handleTextSelection.bind(this));
+
     // Listen for messages from background script
-    chrome.runtime.onMessage.addListener(this.handleMessage.bind(this));
+    // chrome.runtime.onMessage.addListener(this.handleMessage.bind(this));
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      this.handleMessage(request, sender, sendResponse);
+      return true; // 🔑 giữ sendResponse mở cho async
+    });
   }
 
   handleTextSelection(event) {
-    const selection = window.getSelection();
-    const selectedText = selection.toString().trim();
-    
-    if (selectedText && selectedText.length > 0) {
-      this.selectedText = selectedText;
-      this.showContextMenu(event);
-    } else {
-      this.hideContextMenu();
-    }
+    if (document.getElementById('hilidea-context-menu')) return;
+
+    clearTimeout(this._menuTimer);
+    this._menuTimer = setTimeout(() => {
+      const selection = window.getSelection();
+      const selectedText = selection.toString().trim();
+      if (selectedText) {
+        this.selectedText = selectedText;
+        this.showContextMenu(event);
+      } else {
+        this.hideContextMenu();
+      }
+    }, 150);
   }
 
   showContextMenu(event) {
     // Remove existing menu
     this.hideContextMenu();
-    
+
     // Create context menu
     const menu = document.createElement('div');
     menu.id = 'hilidea-context-menu';
@@ -44,27 +58,39 @@ class TextHighlighter {
         </button>
       </div>
     `;
-    
+
     // Position menu near cursor
     menu.style.left = event.pageX + 'px';
     menu.style.top = (event.pageY - 50) + 'px';
-    
+
     document.body.appendChild(menu);
+
+    const saveBtn = document.getElementById('hilidea-save-btn');
     
-    // Add event listeners
-    document.getElementById('hilidea-save-btn').addEventListener('click', () => {
-      console.log('ttt saveHighlightedText');
-      this.saveHighlightedText();
-    });
-    
-    document.getElementById('hilidea-cancel-btn').addEventListener('click', () => {
-      this.hideContextMenu();
-    });
-    
-    // Auto-hide after 5 seconds
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        this.saveHighlightedText();
+      });
+    }
+
+    const outsideClickHandler = (e) => {
+      if (!menu.contains(e.target)) {
+        this.hideContextMenu();
+        document.removeEventListener('click', outsideClickHandler);
+      }
+    };
     setTimeout(() => {
-      this.hideContextMenu();
-    }, 5000);
+      document.addEventListener('click', outsideClickHandler);
+    }, 0);
+
+    // document.getElementById('hilidea-cancel-btn').addEventListener('click', () => {
+    //   this.hideContextMenu();
+    // });
+
+    // // Auto-hide after 5 seconds
+    // setTimeout(() => {
+    //   this.hideContextMenu();
+    // }, 60000);
   }
 
   hideContextMenu() {
@@ -75,14 +101,12 @@ class TextHighlighter {
   }
 
   async saveHighlightedText() {
-    console.log('ttt saveHighlightedText');
     if (!this.selectedText) return;
-    
     this.hideContextMenu();
-    
+
     // Show loading indicator
     this.showLoadingIndicator();
-    
+
     try {
       // Send message to background script to save text
       const response = await chrome.runtime.sendMessage({
@@ -91,7 +115,7 @@ class TextHighlighter {
         url: window.location.href,
         title: document.title
       });
-      
+
       if (response.success) {
         this.showSuccessMessage(response.ideas);
       } else {
@@ -136,11 +160,12 @@ class TextHighlighter {
       </div>
     `;
     document.body.appendChild(message);
-    
+
     document.getElementById('hilidea-close-success').addEventListener('click', () => {
       message.remove();
+      clearSelection();
     });
-    
+
     // Auto-hide after 10 seconds
     setTimeout(() => {
       if (document.getElementById('hilidea-success')) {
@@ -160,11 +185,11 @@ class TextHighlighter {
       </div>
     `;
     document.body.appendChild(message);
-    
+
     document.getElementById('hilidea-close-error').addEventListener('click', () => {
       message.remove();
     });
-    
+
     // Auto-hide after 5 seconds
     setTimeout(() => {
       if (document.getElementById('hilidea-error')) {
@@ -182,10 +207,4 @@ class TextHighlighter {
 }
 
 // Initialize the highlighter when the page loads
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    new TextHighlighter();
-  });
-} else {
-  new TextHighlighter();
-}
+new TextHighlighter();

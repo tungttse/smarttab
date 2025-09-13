@@ -20,14 +20,12 @@ class PopupManager {
   }
 
   async checkLoginStatus() {
-    // this.showLoading();
+    this.showLoading();
     
     try {
       const response = await chrome.runtime.sendMessage({
         action: 'getLoginStatus'
       });
-
-      console.log('ttt response', response);
 
       if (response.success) {
         if (response.loggedIn) {
@@ -44,13 +42,11 @@ class PopupManager {
   }
 
   async handleLogin() {
-    // this.showLoading();
-    console.log('ttt handleLogin');
+    this.showLoading();
     try {
       const response = await chrome.runtime.sendMessage({
         action: 'loginWithGmail'
       });
-      console.log('ttt response', response);
       
       if (response.success) {
         this.showUserSection(response.user);
