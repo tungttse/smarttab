@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartTab</title>
+  <link rel="stylesheet" href="newtab.css">
+</head>
+<body>
+  <!-- Background Image Container -->
+  <div class="background-container" id="background-container">
+    <div class="background-overlay"></div>
+  </div>
+  
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <h1 class="logo">SmartTab</h1>
+      <p class="tagline">Your smart new tab experience</p>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Todo List Section -->
+      <section class="section todo-section">
+        <h2 class="section-title">Focus Todo List</h2>
+        <div class="todo-container">
+          <div class="todo-input-container">
+            <input 
+              type="text" 
+              id="todo-input" 
+              class="todo-input" 
+              placeholder="Add a task to focus on..."
+              maxlength="200"
+            >
+            <button id="add-todo-btn" class="add-todo-btn">Add</button>
+          </div>
+          <div class="todo-list" id="todo-list">
+            <div class="empty-state">No tasks yet. Add one to get started!</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Statistics Section -->
+      <section class="section statistics-section">
+        <h2 class="section-title">Website Statistics</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-value" id="total-visits">0</div>
+            <div class="stat-label">Total Visits</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⏱️</div>
+            <div class="stat-value" id="total-time">0h</div>
+            <div class="stat-label">Total Time</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🌐</div>
+            <div class="stat-value" id="unique-domains">0</div>
+            <div class="stat-label">Unique Domains</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📅</div>
+            <div class="stat-value" id="daily-active-time">0m</div>
+            <div class="stat-label">Active Today</div>
+          </div>
+        </div>
+
+        <div class="stats-details">
+          <div class="stats-tabs">
+            <button class="tab-btn active" data-tab="recent">Recent Visits</button>
+            <button class="tab-btn" data-tab="top">Top Domains</button>
+          </div>
+          
+          <div class="tab-content active" id="recent-tab">
+            <div class="visit-list" id="recent-visits">
+              <div class="loading">Loading recent visits...</div>
+            </div>
+          </div>
+          
+          <div class="tab-content" id="top-tab">
+            <div class="domain-list" id="top-domains">
+              <div class="loading">Loading top domains...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bookmarks Section -->
+      <section class="section bookmarks-section">
+        <h2 class="section-title">Bookmarks</h2>
+        <div class="bookmarks-container">
+          <div class="bookmarks-header">
+            <input 
+              type="text" 
+              id="bookmark-search" 
+              class="bookmark-search" 
+              placeholder="Search bookmarks..."
+            >
+            <button id="add-bookmark-btn" class="add-bookmark-btn">+ Add Bookmark</button>
+          </div>
+          <div class="bookmarks-list" id="bookmarks-list">
+            <div class="loading">Loading bookmarks...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Reminders Section -->
+      <section class="section reminders-section">
+        <div class="reminders-header">
+          <h2 class="section-title">Reminders</h2>
+          <div class="reminder-settings">
+            <label class="reminder-time-label">
+              <span>Remind after:</span>
+              <select id="reminder-time-select" class="reminder-time-select">
+                <option value="30">30 minutes</option>
+                <option value="60" selected>1 hour</option>
+                <option value="120">2 hours</option>
+                <option value="180">3 hours</option>
+                <option value="360">6 hours</option>
+                <option value="720">12 hours</option>
+                <option value="1440">24 hours</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="reminders-list" id="reminders-list">
+          <div class="loading">Loading reminders...</div>
+        </div>
+      </section>
+
+      <!-- Tab Management Section -->
+      <section class="section tabs-section">
+        <h2 class="section-title">Tab Management</h2>
+        <div class="tabs-controls">
+          <button id="sort-tabs-btn" class="sort-tabs-btn">
+            <span class="btn-icon">🔀</span>
+            Sort Tabs by Domain
+          </button>
+          <button id="group-tabs-btn" class="group-tabs-btn">
+            <span class="btn-icon">📁</span>
+            Group Tabs by Domain
+          </button>
+          <label class="toggle-label">
+            <input type="checkbox" id="auto-sort-toggle" checked>
+            <span>Auto-sort on new tab</span>
+          </label>
+        </div>
+        <div class="tabs-info" id="tabs-info">
+          <div class="loading">Loading tabs info...</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Add Bookmark Modal -->
+  <div id="bookmark-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Bookmark</h3>
+        <button class="modal-close" id="close-bookmark-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="bookmark-url">URL</label>
+          <input type="url" id="bookmark-url" class="form-input" placeholder="https://example.com" required>
+        </div>
+        <div class="form-group">
+          <label for="bookmark-title">Title</label>
+          <input type="text" id="bookmark-title" class="form-input" placeholder="Bookmark title" required>
+        </div>
+        <div class="form-group">
+          <label for="bookmark-folder">Folder (optional)</label>
+          <select id="bookmark-folder" class="form-input">
+            <option value="">Bookmarks Bar</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancel-bookmark-btn">Cancel</button>
+        <button class="btn btn-primary" id="save-bookmark-btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="newtab.js"></script>
+</body>
+</html>

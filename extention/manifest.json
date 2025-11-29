@@ -1,42 +1,34 @@
 {
   "manifest_version": 3,
-  "name": "Hilidea - Text Highlighter & Idea Saver",
+  "name": "SmartTab",
   "version": "1.0.0",
-  "description": "Highlight text on any webpage and save it to generate ideas via API",
+  "description": "Smart new tab with website statistics, todo list, bookmark management, and auto tab sorting",
   "permissions": [
-    "identity",
     "storage",
-    "contextMenus",
-    "activeTab",
-    "scripting"
+    "bookmarks",
+    "tabs",
+    "tabGroups",
+    "declarativeNetRequest"
   ],
   "host_permissions": [
-    "https://mockapi.com/*",
-    "https://accounts.google.com/*",
-    "https://www.googleapis.com/*",
-    "<all_urls>"
+    "https://source.unsplash.com/*"
   ],
-  "oauth2": {
-    "client_id": "1068530317003-pb9ptae4ck7ehaccgbv76792ubhj3ui6.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/userinfo.email",
-      "https://www.googleapis.com/auth/userinfo.profile"
-    ]
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
   },
   "background": {
     "service_worker": "background.js"
   },
-  "content_scripts": [
+  "web_accessible_resources": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "css": ["content.css"]
+      "resources": [
+        "blocked.html",
+        "blocked.css",
+        "blocked.js"
+      ],
+      "matches": ["<all_urls>"]
     }
   ],
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "Hilidea"
-  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Domain Blocked - SmartTab</title>
+  <link rel="stylesheet" href="blocked.css">
+</head>
+<body>
+  <div class="blocked-container">
+    <!-- Background -->
+    <div class="blocked-background">
+      <div class="blocked-overlay"></div>
+    </div>
+
+    <!-- Content -->
+    <div class="blocked-content">
+      <div class="blocked-icon">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor" opacity="0.3"/>
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" fill="currentColor"/>
+        </svg>
+      </div>
+
+      <h1 class="blocked-title">Domain Blocked</h1>
+      <p class="blocked-domain" id="blocked-domain">Loading...</p>
+      <p class="blocked-message">
+        This domain has been blocked by <strong>SmartTab</strong> to help you stay focused and productive.
+      </p>
+
+      <!-- SmartTab Info -->
+      <div class="smarttab-info">
+        <h2>About SmartTab</h2>
+        <p>SmartTab is a powerful Chrome extension that helps you:</p>
+        <ul class="features-list">
+          <li>📊 Track your website usage statistics</li>
+          <li>✅ Manage your focus with todo lists</li>
+          <li>🔖 Organize your bookmarks efficiently</li>
+          <li>🔀 Auto-sort tabs by domain</li>
+          <li>🚫 Block distracting websites</li>
+        </ul>
+        <p class="info-note">
+          You blocked this domain to maintain focus. You can unblock it anytime from the SmartTab new tab page.
+        </p>
+      </div>
+
+      <!-- Actions -->
+      <div class="blocked-actions">
+        <button id="unblock-btn" class="btn btn-primary">
+          <span class="btn-icon">🔓</span>
+          Unblock Domain
+        </button>
+        <button id="newtab-btn" class="btn btn-secondary">
+          <span class="btn-icon">🏠</span>
+          Go to New Tab
+        </button>
+      </div>
+
+      <!-- Footer -->
+      <div class="blocked-footer">
+        <p>Powered by <strong>SmartTab</strong> - Your smart new tab experience</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="blocked.js"></script>
+</body>
+</html>
