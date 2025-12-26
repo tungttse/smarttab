@@ -7,6 +7,7 @@ class SmartTabBackground {
     this.activeTabStartTime = null;
     this.tabTimers = new Map(); // Track time spent per tab
     this.autoSortEnabled = true;
+    this.periodicSaveInterval = null;
     this.init();
   }
 
@@ -20,6 +21,39 @@ class SmartTabBackground {
     
     // Load settings
     await this.loadSettings();
+    
+    // Start periodic time saving (every 30 seconds)
+    this.startPeriodicTimeSave();
+  }
+
+  startPeriodicTimeSave() {
+    // Save current tab time every 30 seconds to prevent data loss
+    this.periodicSaveInterval = setInterval(async () => {
+      if (this.activeTab && this.activeTabStartTime) {
+        const now = Date.now();
+        const timeSpent = now - this.activeTabStartTime;
+        
+        // Only save if meaningful time has passed (> 1 second)
+        if (timeSpent > 1000) {
+          const domain = this.extractDomain(this.activeTab.url || '');
+          
+          // Update domain stats
+          await this.updateDomainStats(domain, timeSpent);
+          
+          // Update recent visit time
+          await this.updateRecentVisit(this.activeTab.url, timeSpent);
+          
+          // Update daily active time
+          await this.updateDailyActiveTime(timeSpent);
+          
+          // Update daily domain time for limits tracking
+          await this.updateDomainTimeToday(domain, timeSpent);
+          
+          // Reset start time to now (so we don't double-count)
+          this.activeTabStartTime = now;
+        }
+      }
+    }, 30000); // 30 seconds
   }
 
   async initializeStorage() {
@@ -64,6 +98,35 @@ class SmartTabBackground {
   getTodayDateKey() {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  }
+
+  // Get timestamp ranges for different periods
+  getPeriodRange(period) {
+    const now = new Date();
+    let start;
+    
+    switch (period) {
+      case 'today':
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case 'week':
+        start = new Date(now);
+        start.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+        start.setHours(0, 0, 0, 0);
+        break;
+      case 'month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'year':
+        start = new Date(now.getFullYear(), 0, 1);
+        break;
+      case 'all':
+      default:
+        start = new Date(0); // Beginning of time
+        break;
+    }
+    
+    return { start: start.getTime(), end: now.getTime() };
   }
 
   async loadSettings() {
@@ -114,7 +177,7 @@ class SmartTabBackground {
     try {
       switch (request.action) {
         case 'getVisitStats':
-          const stats = await this.getVisitStats();
+          const stats = await this.getVisitStats(request.period || 'all');
           sendResponse({ success: true, data: stats });
           break;
 
@@ -130,9 +193,7 @@ class SmartTabBackground {
 
         case 'toggleAutoSort':
           this.autoSortEnabled = request.enabled;
-          await chrome.storage.local.set({ 
-            settings: { autoSortEnabled: this.autoSortEnabled } 
-          });
+          await this.updateSettings({ autoSortEnabled: this.autoSortEnabled });
           sendResponse({ success: true });
           break;
 
@@ -159,6 +220,41 @@ class SmartTabBackground {
         case 'dismissReminder':
           const dismissResult = await this.dismissReminder(request.domain);
           sendResponse({ success: dismissResult });
+          break;
+
+        case 'exportData':
+          const exportData = await this.exportAllData();
+          sendResponse({ success: true, data: exportData });
+          break;
+
+        case 'importData':
+          const importResult = await this.importAllData(request.data);
+          sendResponse({ success: importResult });
+          break;
+
+        case 'setDomainLimit':
+          const limitResult = await this.setDomainTimeLimit(request.domain, request.limitMinutes);
+          sendResponse({ success: limitResult });
+          break;
+
+        case 'getDomainLimits':
+          const limits = await this.getDomainLimits();
+          sendResponse({ success: true, limits });
+          break;
+
+        case 'startFocusMode':
+          const focusResult = await this.startFocusMode(request.duration, request.blockedDomains);
+          sendResponse({ success: focusResult });
+          break;
+
+        case 'stopFocusMode':
+          const stopResult = await this.stopFocusMode();
+          sendResponse({ success: stopResult });
+          break;
+
+        case 'getFocusModeStatus':
+          const focusStatus = await this.getFocusModeStatus();
+          sendResponse({ success: true, ...focusStatus });
           break;
 
         default:
@@ -255,8 +351,11 @@ class SmartTabBackground {
     // Update visit record if recent
     await this.updateRecentVisit(this.activeTab.url, timeSpent);
     
-    // Update daily active time (không quan tâm domain)
+    // Update daily active time
     await this.updateDailyActiveTime(timeSpent);
+    
+    // Update daily domain time for limits tracking
+    await this.updateDomainTimeToday(domain, timeSpent);
 
     // Reset timer
     this.activeTabStartTime = null;
@@ -377,24 +476,55 @@ class SmartTabBackground {
     }
   }
 
-  async getVisitStats() {
+  async getVisitStats(period = 'all') {
     const data = await chrome.storage.local.get(['visits', 'domains']);
     const visits = data.visits || [];
     const domains = data.domains || {};
-
-    // Calculate totals
-    const totalVisits = visits.length;
-    const totalTime = Object.values(domains).reduce((sum, d) => sum + (d.totalTime || 0), 0);
-    const uniqueDomains = Object.keys(domains).length;
     
-    // Get daily active time (today only)
-    const dailyActiveTime = await this.getDailyActiveTime();
+    // Get period range
+    const range = this.getPeriodRange(period);
+    
+    console.log('getVisitStats called with period:', period);
+    console.log('Range:', new Date(range.start).toISOString(), 'to', new Date(range.end).toISOString());
+    console.log('Total visits in storage:', visits.length);
+    
+    // Filter visits by period
+    const periodVisits = visits.filter(v => v.timestamp >= range.start && v.timestamp <= range.end);
+    
+    console.log('Filtered visits for period:', periodVisits.length);
+    
+    // Calculate period-based domain stats from visits
+    const periodDomainStats = {};
+    periodVisits.forEach(visit => {
+      const domain = visit.domain;
+      if (!periodDomainStats[domain]) {
+        periodDomainStats[domain] = { count: 0, totalTime: 0 };
+      }
+      periodDomainStats[domain].count += 1;
+      periodDomainStats[domain].totalTime += (visit.timeSpent || 0);
+    });
 
-    // Get recent visits (last 20)
-    const recentVisits = visits.slice(0, 20);
+    // Calculate totals for the period
+    const totalVisits = periodVisits.length;
+    const totalTime = Object.values(periodDomainStats).reduce((sum, d) => sum + (d.totalTime || 0), 0);
+    const uniqueDomains = Object.keys(periodDomainStats).length;
+    
+    // For 'all' period, use the accumulated domain stats instead
+    let finalTotalVisits = totalVisits;
+    let finalTotalTime = totalTime;
+    let finalUniqueDomains = uniqueDomains;
+    
+    if (period === 'all') {
+      finalTotalVisits = Object.values(domains).reduce((sum, d) => sum + (d.count || 0), 0);
+      finalTotalTime = Object.values(domains).reduce((sum, d) => sum + (d.totalTime || 0), 0);
+      finalUniqueDomains = Object.keys(domains).length;
+    }
 
-    // Get top domains (sorted by count or time)
-    const topDomains = Object.entries(domains)
+    // Get recent visits for this period (last 20)
+    const recentVisits = periodVisits.slice(0, 20);
+
+    // Get top domains for this period
+    const topDomains = Object.entries(period === 'all' ? domains : periodDomainStats)
       .map(([domain, stats]) => ({
         domain,
         count: stats.count || 0,
@@ -405,13 +535,13 @@ class SmartTabBackground {
       .slice(0, 10);
 
     return {
-      totalVisits,
-      totalTime,
-      dailyActiveTime,
-      uniqueDomains,
+      period,
+      totalVisits: finalTotalVisits,
+      totalTime: finalTotalTime,
+      uniqueDomains: finalUniqueDomains,
       recentVisits,
       topDomains,
-      domains
+      domains: period === 'all' ? domains : periodDomainStats
     };
   }
 
@@ -610,7 +740,8 @@ class SmartTabBackground {
       let colorIndex = 0;
 
       for (const [domain, domainTabs] of Object.entries(domainGroups)) {
-        if (domainTabs.length < 1) continue;
+        // Only group domains with 2 or more tabs
+        if (domainTabs.length < 2) continue;
 
         const tabIds = domainTabs.map(tab => tab.id);
         
@@ -755,7 +886,340 @@ class SmartTabBackground {
       return false;
     }
   }
+
+  // ==================== Settings Management ====================
+  async updateSettings(newSettings) {
+    try {
+      const data = await chrome.storage.local.get(['settings']);
+      const settings = data.settings || {};
+      Object.assign(settings, newSettings);
+      await chrome.storage.local.set({ settings });
+      return true;
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      return false;
+    }
+  }
+
+  // ==================== Data Export/Import ====================
+  async exportAllData() {
+    try {
+      const data = await chrome.storage.local.get(null);
+      return {
+        version: '1.0.0',
+        exportDate: new Date().toISOString(),
+        data: data
+      };
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      return null;
+    }
+  }
+
+  async importAllData(importData) {
+    try {
+      if (!importData || !importData.data) {
+        throw new Error('Invalid import data format');
+      }
+      
+      // Clear existing data and import new
+      await chrome.storage.local.clear();
+      await chrome.storage.local.set(importData.data);
+      
+      // Reinitialize
+      await this.initializeStorage();
+      await this.loadSettings();
+      
+      return true;
+    } catch (error) {
+      console.error('Error importing data:', error);
+      return false;
+    }
+  }
+
+  // ==================== Domain Time Limits ====================
+  async setDomainTimeLimit(domain, limitMinutes) {
+    try {
+      const data = await chrome.storage.local.get(['domainLimits']);
+      const domainLimits = data.domainLimits || {};
+      
+      if (limitMinutes === null || limitMinutes === 0) {
+        delete domainLimits[domain];
+      } else {
+        domainLimits[domain] = {
+          limitMinutes: limitMinutes,
+          limitMs: limitMinutes * 60 * 1000
+        };
+      }
+      
+      await chrome.storage.local.set({ domainLimits });
+      return true;
+    } catch (error) {
+      console.error('Error setting domain limit:', error);
+      return false;
+    }
+  }
+
+  async getDomainLimits() {
+    try {
+      const data = await chrome.storage.local.get(['domainLimits']);
+      return data.domainLimits || {};
+    } catch (error) {
+      console.error('Error getting domain limits:', error);
+      return {};
+    }
+  }
+
+  async checkDomainLimit(domain) {
+    try {
+      const data = await chrome.storage.local.get(['domainLimits', 'domains']);
+      const domainLimits = data.domainLimits || {};
+      const domains = data.domains || {};
+      
+      if (!domainLimits[domain]) return { exceeded: false };
+      
+      const limit = domainLimits[domain];
+      const domainStats = domains[domain] || { totalTime: 0 };
+      
+      // Get today's time for this domain
+      const todayTime = await this.getDomainTimeToday(domain);
+      
+      if (todayTime >= limit.limitMs) {
+        return { 
+          exceeded: true, 
+          timeSpent: todayTime,
+          limit: limit.limitMs,
+          domain: domain
+        };
+      }
+      
+      // Warning at 80%
+      if (todayTime >= limit.limitMs * 0.8) {
+        return {
+          exceeded: false,
+          warning: true,
+          timeSpent: todayTime,
+          limit: limit.limitMs,
+          remaining: limit.limitMs - todayTime,
+          domain: domain
+        };
+      }
+      
+      return { exceeded: false, timeSpent: todayTime, limit: limit.limitMs };
+    } catch (error) {
+      console.error('Error checking domain limit:', error);
+      return { exceeded: false };
+    }
+  }
+
+  async getDomainTimeToday(domain) {
+    try {
+      const data = await chrome.storage.local.get(['dailyDomainTime']);
+      const dailyDomainTime = data.dailyDomainTime || {};
+      const todayKey = this.getTodayDateKey();
+      
+      if (!dailyDomainTime[todayKey]) return 0;
+      return dailyDomainTime[todayKey][domain] || 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  async updateDomainTimeToday(domain, timeSpent) {
+    try {
+      const todayKey = this.getTodayDateKey();
+      const data = await chrome.storage.local.get(['dailyDomainTime']);
+      const dailyDomainTime = data.dailyDomainTime || {};
+      
+      // Reset if new day
+      if (!dailyDomainTime[todayKey]) {
+        // Keep only today's data to save space
+        Object.keys(dailyDomainTime).forEach(key => {
+          if (key !== todayKey) delete dailyDomainTime[key];
+        });
+        dailyDomainTime[todayKey] = {};
+      }
+      
+      dailyDomainTime[todayKey][domain] = (dailyDomainTime[todayKey][domain] || 0) + timeSpent;
+      await chrome.storage.local.set({ dailyDomainTime });
+      
+      // Check if limit exceeded
+      const limitCheck = await this.checkDomainLimit(domain);
+      if (limitCheck.warning || limitCheck.exceeded) {
+        this.notifyDomainLimit(limitCheck);
+      }
+    } catch (error) {
+      console.error('Error updating domain time today:', error);
+    }
+  }
+
+  notifyDomainLimit(limitCheck) {
+    const minutes = Math.floor(limitCheck.timeSpent / 60000);
+    const limitMinutes = Math.floor(limitCheck.limit / 60000);
+    
+    if (limitCheck.exceeded) {
+      chrome.notifications.create(`limit-${limitCheck.domain}`, {
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: 'Time Limit Exceeded',
+        message: `You've spent ${minutes}m on ${limitCheck.domain} today (limit: ${limitMinutes}m)`,
+        priority: 2
+      });
+    } else if (limitCheck.warning) {
+      const remaining = Math.floor(limitCheck.remaining / 60000);
+      chrome.notifications.create(`warning-${limitCheck.domain}`, {
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: 'Time Limit Warning',
+        message: `Only ${remaining}m left for ${limitCheck.domain} today`,
+        priority: 1
+      });
+    }
+  }
+
+  // ==================== Focus Mode ====================
+  async startFocusMode(durationMinutes, blockedCategories = ['social', 'entertainment']) {
+    try {
+      const endTime = Date.now() + (durationMinutes * 60 * 1000);
+      
+      // Default focus mode blocked domains
+      const focusBlockedDomains = [
+        'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 
+        'tiktok.com', 'reddit.com', 'youtube.com', 'netflix.com',
+        'twitch.tv', 'discord.com', 'snapchat.com', 'pinterest.com'
+      ];
+      
+      const focusMode = {
+        active: true,
+        startTime: Date.now(),
+        endTime: endTime,
+        durationMinutes: durationMinutes,
+        blockedDomains: focusBlockedDomains,
+        originalBlockedDomains: []
+      };
+      
+      // Save original blocked domains
+      const data = await chrome.storage.local.get(['blockedDomains']);
+      focusMode.originalBlockedDomains = data.blockedDomains || [];
+      
+      // Merge focus blocked domains with existing
+      const allBlocked = [...new Set([...focusMode.originalBlockedDomains, ...focusBlockedDomains])];
+      await chrome.storage.local.set({ 
+        focusMode,
+        blockedDomains: allBlocked
+      });
+      
+      // Update blocking rules
+      await this.updateBlockingRules();
+      
+      // Set alarm to end focus mode
+      chrome.alarms.create('focusModeEnd', { when: endTime });
+      
+      // Close tabs from blocked domains
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (tab.url) {
+          const tabDomain = this.extractDomain(tab.url);
+          if (focusBlockedDomains.includes(tabDomain)) {
+            await chrome.tabs.remove(tab.id);
+          }
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error starting focus mode:', error);
+      return false;
+    }
+  }
+
+  async stopFocusMode() {
+    try {
+      const data = await chrome.storage.local.get(['focusMode']);
+      const focusMode = data.focusMode;
+      
+      if (!focusMode) return true;
+      
+      // Restore original blocked domains
+      await chrome.storage.local.set({
+        blockedDomains: focusMode.originalBlockedDomains || [],
+        focusMode: { active: false }
+      });
+      
+      // Update blocking rules
+      await this.updateBlockingRules();
+      
+      // Cancel alarm
+      chrome.alarms.clear('focusModeEnd');
+      
+      return true;
+    } catch (error) {
+      console.error('Error stopping focus mode:', error);
+      return false;
+    }
+  }
+
+  async getFocusModeStatus() {
+    try {
+      const data = await chrome.storage.local.get(['focusMode']);
+      const focusMode = data.focusMode || { active: false };
+      
+      if (!focusMode.active) {
+        return { active: false };
+      }
+      
+      const now = Date.now();
+      if (now >= focusMode.endTime) {
+        await this.stopFocusMode();
+        return { active: false };
+      }
+      
+      return {
+        active: true,
+        remaining: focusMode.endTime - now,
+        endTime: focusMode.endTime,
+        durationMinutes: focusMode.durationMinutes,
+        blockedDomains: focusMode.blockedDomains
+      };
+    } catch (error) {
+      console.error('Error getting focus mode status:', error);
+      return { active: false };
+    }
+  }
+
+  setupAlarmListeners() {
+    chrome.alarms.onAlarm.addListener(async (alarm) => {
+      if (alarm.name === 'focusModeEnd') {
+        await this.stopFocusMode();
+        chrome.notifications.create('focusModeEnded', {
+          type: 'basic',
+          iconUrl: 'icons/icon128.png',
+          title: 'Focus Mode Ended',
+          message: 'Great job staying focused! Take a break.',
+          priority: 2
+        });
+      }
+    });
+  }
+
+  // ==================== Idle Detection ====================
+  setupIdleDetection() {
+    // Set idle detection threshold to 60 seconds
+    chrome.idle.setDetectionInterval(60);
+    
+    chrome.idle.onStateChanged.addListener((state) => {
+      if (state === 'idle' || state === 'locked') {
+        this.pauseCurrentTab();
+      } else if (state === 'active') {
+        this.resumeCurrentTab();
+      }
+    });
+  }
 }
 
 // Initialize background service
-new SmartTabBackground();
+const smartTab = new SmartTabBackground();
+
+// Setup alarm listeners after initialization
+smartTab.setupAlarmListeners();
+smartTab.setupIdleDetection();

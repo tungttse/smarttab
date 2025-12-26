@@ -1,14 +1,17 @@
 {
   "manifest_version": 3,
   "name": "SmartTab",
-  "version": "1.0.0",
-  "description": "Smart new tab with website statistics, todo list, bookmark management, and auto tab sorting",
+  "version": "1.1.0",
+  "description": "Smart new tab with website statistics, todo list, bookmark management, focus mode, and productivity tracking",
   "permissions": [
     "storage",
     "bookmarks",
     "tabs",
     "tabGroups",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "idle",
+    "notifications",
+    "alarms"
   ],
   "host_permissions": [
     "https://source.unsplash.com/*"

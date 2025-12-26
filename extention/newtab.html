@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SmartTab</title>
   <link rel="stylesheet" href="newtab.css">
+  
 </head>
 <body>
   <!-- Background Image Container -->
@@ -17,6 +18,13 @@
     <header class="header">
       <h1 class="logo">SmartTab</h1>
       <p class="tagline">Your smart new tab experience</p>
+      <!-- Focus Mode Indicator -->
+      <div id="focus-mode-banner" class="focus-mode-banner hidden">
+        <span class="focus-icon">🎯</span>
+        <span class="focus-text">Focus Mode Active</span>
+        <span class="focus-timer" id="focus-timer">00:00</span>
+        <button id="stop-focus-btn" class="stop-focus-btn">End Focus</button>
+      </div>
     </header>
 
     <!-- Main Content -->
@@ -43,27 +51,45 @@
 
       <!-- Statistics Section -->
       <section class="section statistics-section">
-        <h2 class="section-title">Website Statistics</h2>
+        <div class="section-header">
+          <h2 class="section-title">Website Statistics</h2>
+          <div class="period-selector">
+            <button class="period-btn active" data-period="today">Today</button>
+            <button class="period-btn" data-period="week">Week</button>
+            <button class="period-btn" data-period="month">Month</button>
+            <button class="period-btn" data-period="year">Year</button>
+            <button class="period-btn" data-period="all">All Time</button>
+          </div>
+        </div>
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon">📊</div>
             <div class="stat-value" id="total-visits">0</div>
-            <div class="stat-label">Total Visits</div>
+            <div class="stat-label">Visits</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon">⏱️</div>
             <div class="stat-value" id="total-time">0h</div>
-            <div class="stat-label">Total Time</div>
+            <div class="stat-label">Time Spent</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon">🌐</div>
             <div class="stat-value" id="unique-domains">0</div>
-            <div class="stat-label">Unique Domains</div>
+            <div class="stat-label">Sites Visited</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon">📅</div>
-            <div class="stat-value" id="daily-active-time">0m</div>
-            <div class="stat-label">Active Today</div>
+        </div>
+
+        <div class="pie-chart-container">
+          <div class="chart-header">
+            <h3 class="chart-title">Top Sites</h3>
+            <div class="chart-toggle">
+              <button class="chart-btn active" data-chart-mode="visits">Visits</button>
+              <button class="chart-btn" data-chart-mode="time">Time</button>
+            </div>
+          </div>
+          <div class="pie-chart-wrapper">
+            <canvas id="visits-pie-chart" width="200" height="200"></canvas>
+            <div class="pie-chart-legend" id="pie-chart-legend"></div>
           </div>
         </div>
 
@@ -80,6 +106,11 @@
           </div>
           
           <div class="tab-content" id="top-tab">
+            <div class="domain-sort-toggle">
+              <span>Sort by:</span>
+              <button class="sort-btn active" data-sort="count">Visits</button>
+              <button class="sort-btn" data-sort="time">Time Spent</button>
+            </div>
             <div class="domain-list" id="top-domains">
               <div class="loading">Loading top domains...</div>
             </div>
@@ -138,10 +169,6 @@
             <span class="btn-icon">🔀</span>
             Sort Tabs by Domain
           </button>
-          <button id="group-tabs-btn" class="group-tabs-btn">
-            <span class="btn-icon">📁</span>
-            Group Tabs by Domain
-          </button>
           <label class="toggle-label">
             <input type="checkbox" id="auto-sort-toggle" checked>
             <span>Auto-sort on new tab</span>
@@ -149,6 +176,80 @@
         </div>
         <div class="tabs-info" id="tabs-info">
           <div class="loading">Loading tabs info...</div>
+        </div>
+      </section>
+
+      <!-- Focus Mode Section -->
+      <section class="section focus-section">
+        <h2 class="section-title">🎯 Focus Mode</h2>
+        <div class="focus-container">
+          <p class="focus-description">Block distracting sites and stay productive</p>
+          <div class="focus-controls">
+            <select id="focus-duration" class="focus-duration-select">
+              <option value="15">15 minutes</option>
+              <option value="25" selected>25 minutes (Pomodoro)</option>
+              <option value="45">45 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+            </select>
+            <button id="start-focus-btn" class="start-focus-btn">
+              <span class="btn-icon">▶️</span>
+              Start Focus
+            </button>
+          </div>
+          <div class="focus-blocked-sites">
+            <span class="blocked-label">Sites blocked during focus:</span>
+            <span class="blocked-sites-list">Facebook, Twitter, Instagram, TikTok, Reddit, YouTube...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Daily Time Chart Section -->
+      <section class="section chart-section">
+        <h2 class="section-title">📊 Today's Activity</h2>
+        <div class="chart-container">
+          <canvas id="daily-chart" width="400" height="200"></canvas>
+        </div>
+        <div class="chart-legend" id="chart-legend"></div>
+      </section>
+
+      <!-- Settings & Data Section -->
+      <section class="section settings-section">
+        <h2 class="section-title">⚙️ Settings & Data</h2>
+        <div class="settings-container">
+          <div class="settings-group">
+            <h3 class="settings-group-title">Data Management</h3>
+            <div class="settings-buttons">
+              <button id="export-data-btn" class="settings-btn">
+                <span class="btn-icon">📤</span>
+                Export Data
+              </button>
+              <button id="import-data-btn" class="settings-btn">
+                <span class="btn-icon">📥</span>
+                Import Data
+              </button>
+              <input type="file" id="import-file-input" accept=".json" style="display: none;">
+            </div>
+          </div>
+          <div class="settings-group">
+            <h3 class="settings-group-title">Domain Time Limits</h3>
+            <div class="domain-limits-container" id="domain-limits-container">
+              <div class="add-limit-row">
+                <input type="text" id="limit-domain-input" class="limit-domain-input" placeholder="Enter domain (e.g., youtube.com)">
+                <select id="limit-time-select" class="limit-time-select">
+                  <option value="15">15 min</option>
+                  <option value="30">30 min</option>
+                  <option value="60" selected>1 hour</option>
+                  <option value="120">2 hours</option>
+                </select>
+                <button id="add-limit-btn" class="add-limit-btn">Add Limit</button>
+              </div>
+              <div class="limits-list" id="limits-list">
+                <div class="empty-state">No time limits set</div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -184,6 +285,19 @@
     </div>
   </div>
 
-  <script src="newtab.js"></script>
+  <!-- Scripts loaded at end of body for DOM availability -->
+  <script src="js/utils.js"></script>
+  <script src="js/managers/BackgroundImageManager.js"></script>
+  <script src="js/managers/StatisticsManager.js"></script>
+  <script src="js/managers/TodoManager.js"></script>
+  <script src="js/managers/BookmarkManager.js"></script>
+  <script src="js/managers/BlockedDomainManager.js"></script>
+  <script src="js/managers/ReminderManager.js"></script>
+  <script src="js/managers/FocusModeManager.js"></script>
+  <script src="js/managers/ChartManager.js"></script>
+  <script src="js/managers/DataManager.js"></script>
+  <script src="js/managers/DomainLimitsManager.js"></script>
+  <script src="js/managers/TabManager.js"></script>
+  <script src="js/SmartTabApp.js"></script>
 </body>
 </html>

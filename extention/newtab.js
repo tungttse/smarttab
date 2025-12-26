@@ -1050,6 +1050,465 @@ class ReminderManager {
   }
 }
 
+// ==================== Focus Mode Manager ====================
+class FocusModeManager {
+  constructor() {
+    this.active = false;
+    this.endTime = null;
+    this.timerInterval = null;
+  }
+
+  async checkStatus() {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'getFocusModeStatus' });
+      if (response.success) {
+        this.active = response.active;
+        this.endTime = response.endTime;
+        return response;
+      }
+      return { active: false };
+    } catch (error) {
+      console.error('Error checking focus mode status:', error);
+      return { active: false };
+    }
+  }
+
+  async start(durationMinutes) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'startFocusMode',
+        duration: durationMinutes
+      });
+      
+      if (response.success) {
+        this.active = true;
+        this.endTime = Date.now() + (durationMinutes * 60 * 1000);
+        this.updateUI();
+        this.startTimer();
+        showToastMessage(`Focus mode started for ${durationMinutes} minutes`, 'success');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error starting focus mode:', error);
+      return false;
+    }
+  }
+
+  async stop() {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'stopFocusMode' });
+      if (response.success) {
+        this.active = false;
+        this.endTime = null;
+        this.stopTimer();
+        this.updateUI();
+        showToastMessage('Focus mode ended', 'success');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error stopping focus mode:', error);
+      return false;
+    }
+  }
+
+  startTimer() {
+    this.stopTimer();
+    this.timerInterval = setInterval(() => {
+      this.updateTimerDisplay();
+    }, 1000);
+  }
+
+  stopTimer() {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
+  }
+
+  updateTimerDisplay() {
+    const timerEl = document.getElementById('focus-timer');
+    if (!timerEl || !this.endTime) return;
+
+    const remaining = this.endTime - Date.now();
+    if (remaining <= 0) {
+      this.active = false;
+      this.stopTimer();
+      this.updateUI();
+      return;
+    }
+
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  updateUI() {
+    const banner = document.getElementById('focus-mode-banner');
+    const startBtn = document.getElementById('start-focus-btn');
+    const durationSelect = document.getElementById('focus-duration');
+
+    if (this.active) {
+      banner?.classList.remove('hidden');
+      if (startBtn) {
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<span class="btn-icon">🎯</span> Focus Active';
+      }
+      if (durationSelect) durationSelect.disabled = true;
+    } else {
+      banner?.classList.add('hidden');
+      if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.innerHTML = '<span class="btn-icon">▶️</span> Start Focus';
+      }
+      if (durationSelect) durationSelect.disabled = false;
+    }
+  }
+
+  async init() {
+    const status = await this.checkStatus();
+    if (status.active) {
+      this.active = true;
+      this.endTime = status.endTime;
+      this.updateUI();
+      this.startTimer();
+    }
+  }
+}
+
+// ==================== Chart Manager ====================
+class ChartManager {
+  constructor() {
+    this.canvas = null;
+    this.ctx = null;
+    this.colors = [
+      '#6366f1', '#22d3ee', '#10b981', '#f59e0b', '#f43f5e',
+      '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4'
+    ];
+  }
+
+  init() {
+    this.canvas = document.getElementById('daily-chart');
+    if (this.canvas) {
+      this.ctx = this.canvas.getContext('2d');
+      this.setupCanvas();
+    }
+  }
+
+  setupCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = this.canvas.getBoundingClientRect();
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.ctx.scale(dpr, dpr);
+    this.canvas.style.width = rect.width + 'px';
+    this.canvas.style.height = rect.height + 'px';
+  }
+
+  async loadAndRender() {
+    try {
+      const data = await chrome.storage.local.get(['dailyDomainTime', 'domains']);
+      const todayKey = this.getTodayKey();
+      const dailyTime = data.dailyDomainTime?.[todayKey] || {};
+      
+      // Get top domains by time today
+      const sortedDomains = Object.entries(dailyTime)
+        .map(([domain, time]) => ({ domain, time }))
+        .sort((a, b) => b.time - a.time)
+        .slice(0, 6);
+
+      if (sortedDomains.length === 0) {
+        this.renderEmpty();
+        return;
+      }
+
+      this.renderBarChart(sortedDomains);
+      this.renderLegend(sortedDomains);
+    } catch (error) {
+      console.error('Error loading chart data:', error);
+      this.renderEmpty();
+    }
+  }
+
+  getTodayKey() {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  }
+
+  renderEmpty() {
+    if (!this.ctx) return;
+    const width = this.canvas.getBoundingClientRect().width;
+    const height = this.canvas.getBoundingClientRect().height;
+    
+    this.ctx.clearRect(0, 0, width, height);
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    this.ctx.font = '14px Inter, sans-serif';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('No activity data for today yet', width / 2, height / 2);
+
+    const legendEl = document.getElementById('chart-legend');
+    if (legendEl) legendEl.innerHTML = '';
+  }
+
+  renderBarChart(data) {
+    if (!this.ctx) return;
+    
+    const width = this.canvas.getBoundingClientRect().width;
+    const height = this.canvas.getBoundingClientRect().height;
+    const padding = { top: 20, right: 20, bottom: 40, left: 60 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    this.ctx.clearRect(0, 0, width, height);
+
+    const maxTime = Math.max(...data.map(d => d.time));
+    const barWidth = (chartWidth / data.length) * 0.7;
+    const barGap = (chartWidth / data.length) * 0.3;
+
+    // Draw bars
+    data.forEach((item, i) => {
+      const barHeight = (item.time / maxTime) * chartHeight;
+      const x = padding.left + (i * (barWidth + barGap)) + barGap / 2;
+      const y = padding.top + chartHeight - barHeight;
+
+      // Bar gradient
+      const gradient = this.ctx.createLinearGradient(x, y, x, y + barHeight);
+      gradient.addColorStop(0, this.colors[i % this.colors.length]);
+      gradient.addColorStop(1, this.adjustColor(this.colors[i % this.colors.length], -30));
+
+      this.ctx.fillStyle = gradient;
+      this.ctx.beginPath();
+      this.ctx.roundRect(x, y, barWidth, barHeight, 4);
+      this.ctx.fill();
+
+      // Domain label
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      this.ctx.font = '11px Inter, sans-serif';
+      this.ctx.textAlign = 'center';
+      const label = item.domain.length > 10 ? item.domain.slice(0, 8) + '...' : item.domain;
+      this.ctx.fillText(label, x + barWidth / 2, height - 10);
+
+      // Time label on bar
+      const minutes = Math.floor(item.time / 60000);
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      this.ctx.font = '12px Inter, sans-serif';
+      this.ctx.fillText(`${minutes}m`, x + barWidth / 2, y - 8);
+    });
+  }
+
+  renderLegend(data) {
+    const legendEl = document.getElementById('chart-legend');
+    if (!legendEl) return;
+
+    legendEl.innerHTML = data.map((item, i) => {
+      const minutes = Math.floor(item.time / 60000);
+      return `
+        <div class="legend-item">
+          <div class="legend-color" style="background: ${this.colors[i % this.colors.length]}"></div>
+          <span>${item.domain} (${minutes}m)</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  adjustColor(hex, amount) {
+    const num = parseInt(hex.slice(1), 16);
+    const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+    const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
+    const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+  }
+}
+
+// ==================== Data Manager ====================
+class DataManager {
+  async exportData() {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'exportData' });
+      if (response.success && response.data) {
+        const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `smarttab-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToastMessage('Data exported successfully', 'success');
+        return true;
+      }
+      throw new Error('Export failed');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      showToastMessage('Failed to export data', 'error');
+      return false;
+    }
+  }
+
+  async importData(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          
+          if (!data.version || !data.data) {
+            throw new Error('Invalid backup file format');
+          }
+
+          if (!confirm('This will replace all your current data. Are you sure?')) {
+            resolve(false);
+            return;
+          }
+
+          const response = await chrome.runtime.sendMessage({
+            action: 'importData',
+            data: data
+          });
+
+          if (response.success) {
+            showToastMessage('Data imported successfully! Refreshing...', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+            resolve(true);
+          } else {
+            throw new Error('Import failed');
+          }
+        } catch (error) {
+          console.error('Error importing data:', error);
+          showToastMessage('Failed to import data: ' + error.message, 'error');
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  }
+}
+
+// ==================== Domain Limits Manager ====================
+class DomainLimitsManager {
+  constructor() {
+    this.limits = {};
+  }
+
+  async loadLimits() {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'getDomainLimits' });
+      if (response.success) {
+        this.limits = response.limits || {};
+      }
+      return this.limits;
+    } catch (error) {
+      console.error('Error loading domain limits:', error);
+      return {};
+    }
+  }
+
+  async setLimit(domain, minutes) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'setDomainLimit',
+        domain: domain,
+        limitMinutes: minutes
+      });
+      
+      if (response.success) {
+        await this.loadLimits();
+        this.render();
+        showToastMessage(`Time limit set for ${domain}`, 'success');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error setting domain limit:', error);
+      return false;
+    }
+  }
+
+  async removeLimit(domain) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'setDomainLimit',
+        domain: domain,
+        limitMinutes: 0
+      });
+      
+      if (response.success) {
+        await this.loadLimits();
+        this.render();
+        showToastMessage(`Time limit removed for ${domain}`, 'success');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error removing domain limit:', error);
+      return false;
+    }
+  }
+
+  async render() {
+    const container = document.getElementById('limits-list');
+    if (!container) return;
+
+    await this.loadLimits();
+    const dailyTime = await this.getDailyDomainTime();
+
+    const entries = Object.entries(this.limits);
+    if (entries.length === 0) {
+      container.innerHTML = '<div class="empty-state">No time limits set</div>';
+      return;
+    }
+
+    container.innerHTML = entries.map(([domain, limit]) => {
+      const timeSpent = dailyTime[domain] || 0;
+      const limitMs = limit.limitMs || limit.limitMinutes * 60000;
+      const percentage = Math.min(100, (timeSpent / limitMs) * 100);
+      const spentMinutes = Math.floor(timeSpent / 60000);
+      const limitMinutes = limit.limitMinutes;
+      
+      let progressClass = '';
+      if (percentage >= 100) progressClass = 'exceeded';
+      else if (percentage >= 80) progressClass = 'warning';
+
+      return `
+        <div class="limit-item" data-domain="${domain}">
+          <div class="limit-info">
+            <span class="limit-domain">${domain}</span>
+            <span class="limit-time">${spentMinutes}m / ${limitMinutes}m today</span>
+          </div>
+          <div class="limit-progress">
+            <div class="limit-progress-bar">
+              <div class="limit-progress-fill ${progressClass}" style="width: ${percentage}%"></div>
+            </div>
+            <button class="limit-remove-btn" data-domain="${domain}" title="Remove limit">×</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Add remove button handlers
+    container.querySelectorAll('.limit-remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.removeLimit(btn.dataset.domain);
+      });
+    });
+  }
+
+  async getDailyDomainTime() {
+    try {
+      const data = await chrome.storage.local.get(['dailyDomainTime']);
+      const today = new Date();
+      const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      return data.dailyDomainTime?.[todayKey] || {};
+    } catch (error) {
+      return {};
+    }
+  }
+}
+
 // ==================== Tab Manager ====================
 class TabManager {
   constructor() {
@@ -1145,6 +1604,10 @@ class SmartTabApp {
     this.bookmarkManager = new BookmarkManager();
     this.reminderManager = new ReminderManager();
     this.tabManager = new TabManager();
+    this.focusModeManager = new FocusModeManager();
+    this.chartManager = new ChartManager();
+    this.dataManager = new DataManager();
+    this.domainLimitsManager = new DomainLimitsManager();
   }
 
   async init() {
@@ -1158,27 +1621,34 @@ class SmartTabApp {
     await this.bookmarkManager.loadBookmarks();
     await this.reminderManager.loadSettings();
     await this.tabManager.loadSettings();
+    await this.focusModeManager.init();
+    this.chartManager.init();
+    await this.domainLimitsManager.loadLimits();
 
     // Render initial UI
     this.render();
     this.setupEventListeners();
     this.setupTabSwitching();
+    this.setupNewFeatureListeners();
 
     // Refresh stats periodically
     setInterval(() => {
       this.statsManager.refresh(this.blockedDomainManager);
       this.reminderManager.render();
       this.tabManager.updateTabsInfo();
+      this.chartManager.loadAndRender();
+      this.domainLimitsManager.render();
     }, 30000); // Every 30 seconds
 
     // Listen for storage changes for real-time updates
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName === 'local') {
-        if (changes.visits || changes.domains) {
+        if (changes.visits || changes.domains || changes.dailyDomainTime) {
           // Stats changed, refresh
           this.statsManager.refresh(this.blockedDomainManager);
-          // Also refresh reminders
           this.reminderManager.render();
+          this.chartManager.loadAndRender();
+          this.domainLimitsManager.render();
         }
         if (changes.todos) {
           // Todos changed, refresh
@@ -1187,6 +1657,12 @@ class SmartTabApp {
         if (changes.dismissedReminders) {
           // Reminders dismissed, refresh
           this.reminderManager.render();
+        }
+        if (changes.focusMode) {
+          // Focus mode changed
+          this.focusModeManager.checkStatus().then(() => {
+            this.focusModeManager.updateUI();
+          });
         }
       }
     });
@@ -1222,6 +1698,83 @@ class SmartTabApp {
     this.bookmarkManager.render();
     await this.reminderManager.render();
     this.tabManager.updateTabsInfo();
+    await this.chartManager.loadAndRender();
+    await this.domainLimitsManager.render();
+  }
+
+  setupNewFeatureListeners() {
+    // Focus Mode
+    const startFocusBtn = document.getElementById('start-focus-btn');
+    const stopFocusBtn = document.getElementById('stop-focus-btn');
+    const focusDurationSelect = document.getElementById('focus-duration');
+
+    if (startFocusBtn) {
+      startFocusBtn.addEventListener('click', async () => {
+        const duration = parseInt(focusDurationSelect?.value || '25');
+        await this.focusModeManager.start(duration);
+      });
+    }
+
+    if (stopFocusBtn) {
+      stopFocusBtn.addEventListener('click', async () => {
+        await this.focusModeManager.stop();
+      });
+    }
+
+    // Data Export/Import
+    const exportBtn = document.getElementById('export-data-btn');
+    const importBtn = document.getElementById('import-data-btn');
+    const importFileInput = document.getElementById('import-file-input');
+
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        this.dataManager.exportData();
+      });
+    }
+
+    if (importBtn && importFileInput) {
+      importBtn.addEventListener('click', () => {
+        importFileInput.click();
+      });
+
+      importFileInput.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          await this.dataManager.importData(file);
+          importFileInput.value = '';
+        }
+      });
+    }
+
+    // Domain Time Limits
+    const addLimitBtn = document.getElementById('add-limit-btn');
+    const limitDomainInput = document.getElementById('limit-domain-input');
+    const limitTimeSelect = document.getElementById('limit-time-select');
+
+    if (addLimitBtn && limitDomainInput && limitTimeSelect) {
+      const addLimit = async () => {
+        const domain = limitDomainInput.value.trim().toLowerCase();
+        const minutes = parseInt(limitTimeSelect.value);
+
+        if (!domain) {
+          showToastMessage('Please enter a domain', 'error');
+          return;
+        }
+
+        // Clean domain (remove protocol, www, paths)
+        let cleanDomain = domain
+          .replace(/^(https?:\/\/)?(www\.)?/, '')
+          .split('/')[0];
+
+        await this.domainLimitsManager.setLimit(cleanDomain, minutes);
+        limitDomainInput.value = '';
+      };
+
+      addLimitBtn.addEventListener('click', addLimit);
+      limitDomainInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addLimit();
+      });
+    }
   }
 
   setupEventListeners() {
