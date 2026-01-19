@@ -80,13 +80,7 @@
         </div>
 
         <div class="pie-chart-container">
-          <div class="chart-header">
-            <h3 class="chart-title">Top Sites</h3>
-            <div class="chart-toggle">
-              <button class="chart-btn active" data-chart-mode="visits">Visits</button>
-              <button class="chart-btn" data-chart-mode="time">Time</button>
-            </div>
-          </div>
+          <h3 class="chart-title">Top Sites by Visits</h3>
           <div class="pie-chart-wrapper">
             <canvas id="visits-pie-chart" width="200" height="200"></canvas>
             <div class="pie-chart-legend" id="pie-chart-legend"></div>
@@ -247,6 +241,18 @@
               </div>
               <div class="limits-list" id="limits-list">
                 <div class="empty-state">No time limits set</div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <h3 class="settings-group-title">🚫 Blocked Sites</h3>
+            <div class="blocked-container">
+              <div class="blocked-input-row">
+                <input type="text" id="block-domain-input" class="block-input" placeholder="Enter domain (e.g. facebook.com)">
+                <button id="add-block-btn" class="add-block-btn">Block</button>
+              </div>
+              <div class="blocked-domains-list" id="blocked-domains-list">
+                <p class="empty-message">No blocked sites yet</p>
               </div>
             </div>
           </div>

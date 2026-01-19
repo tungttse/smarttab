@@ -57,7 +57,7 @@ class SmartTabBackground {
   }
 
   async initializeStorage() {
-    const data = await chrome.storage.local.get(['visits', 'domains', 'settings', 'blockedDomains', 'dismissedReminders', 'dailyActiveTime']);
+    const data = await chrome.storage.local.get(['visits', 'domains', 'settings', 'blockedDomains', 'dismissedReminders', 'dailyActiveTime', 'blockedAttempts']);
     
     if (!data.visits) {
       await chrome.storage.local.set({ visits: [] });
@@ -78,6 +78,9 @@ class SmartTabBackground {
     }
     if (!data.dismissedReminders) {
       await chrome.storage.local.set({ dismissedReminders: [] });
+    }
+    if (!data.blockedAttempts) {
+      await chrome.storage.local.set({ blockedAttempts: {} });
     }
     
     // Initialize daily active time
@@ -205,6 +208,16 @@ class SmartTabBackground {
         case 'unblockDomain':
           const unblockResult = await this.unblockDomain(request.domain);
           sendResponse({ success: unblockResult });
+          break;
+
+        case 'recordBlockedAttempt':
+          await this.recordBlockedAttempt(request.domain);
+          sendResponse({ success: true });
+          break;
+
+        case 'getBlockedAttempts':
+          const attempts = await this.getBlockedAttempts(request.domain);
+          sendResponse({ success: true, attempts });
           break;
 
         case 'groupTabs':
@@ -815,25 +828,32 @@ class SmartTabBackground {
 
       // Add new blocking rules with redirect to blocked.html
       if (blockedDomains.length > 0) {
-        const extensionId = chrome.runtime.id;
-        const rules = blockedDomains.map((domain, index) => ({
-          id: index + 1,
-          priority: 1,
-          action: {
-            type: 'redirect',
-            redirect: {
-              extensionPath: `/blocked.html?domain=${encodeURIComponent(domain)}`
+        const rules = [];
+        let ruleId = 1;
+        
+        for (const domain of blockedDomains) {
+          // Block main domain
+          rules.push({
+            id: ruleId++,
+            priority: 1,
+            action: {
+              type: 'redirect',
+              redirect: {
+                extensionPath: `/blocked.html?domain=${encodeURIComponent(domain)}`
+              }
+            },
+            condition: {
+              urlFilter: `||${domain}`,
+              resourceTypes: ['main_frame']
             }
-          },
-          condition: {
-            requestDomains: [domain],
-            resourceTypes: ['main_frame']
-          }
-        }));
+          });
+        }
 
         await chrome.declarativeNetRequest.updateDynamicRules({
           addRules: rules
         });
+        
+        console.log('Blocking rules updated:', rules.length, 'rules for', blockedDomains);
       }
     } catch (error) {
       console.error('Error updating blocking rules:', error);
@@ -884,6 +904,51 @@ class SmartTabBackground {
     } catch (error) {
       console.error('Error unblocking domain:', error);
       return false;
+    }
+  }
+
+  async recordBlockedAttempt(domain) {
+    try {
+      const data = await chrome.storage.local.get(['blockedAttempts']);
+      const blockedAttempts = data.blockedAttempts || {};
+      
+      if (!blockedAttempts[domain]) {
+        blockedAttempts[domain] = {
+          count: 0,
+          attempts: []
+        };
+      }
+      
+      blockedAttempts[domain].count++;
+      blockedAttempts[domain].attempts.push({
+        timestamp: Date.now()
+      });
+      
+      // Keep only last 50 attempts per domain
+      if (blockedAttempts[domain].attempts.length > 50) {
+        blockedAttempts[domain].attempts = blockedAttempts[domain].attempts.slice(-50);
+      }
+      
+      await chrome.storage.local.set({ blockedAttempts });
+      return true;
+    } catch (error) {
+      console.error('Error recording blocked attempt:', error);
+      return false;
+    }
+  }
+
+  async getBlockedAttempts(domain) {
+    try {
+      const data = await chrome.storage.local.get(['blockedAttempts']);
+      const blockedAttempts = data.blockedAttempts || {};
+      
+      if (domain) {
+        return blockedAttempts[domain] || { count: 0, attempts: [] };
+      }
+      return blockedAttempts;
+    } catch (error) {
+      console.error('Error getting blocked attempts:', error);
+      return domain ? { count: 0, attempts: [] } : {};
     }
   }
 

@@ -3,9 +3,10 @@
 
 class BookmarkManager {
   constructor() {
-    this.bookmarks = [];
-    this.filteredBookmarks = [];
+    this.bookmarkTree = [];
+    this.flatBookmarks = [];
     this.searchQuery = '';
+    this.collapsedFolders = new Set();
   }
 
   async loadBookmarks() {
@@ -14,10 +15,10 @@ class BookmarkManager {
       if (container) {
         container.innerHTML = '<div class="loading">Loading bookmarks...</div>';
       }
-      const bookmarkTree = await chrome.bookmarks.getTree();
-      this.bookmarks = this.flattenBookmarks(bookmarkTree);
-      this.filteredBookmarks = this.bookmarks;
-      return this.bookmarks;
+      const tree = await chrome.bookmarks.getTree();
+      this.bookmarkTree = tree[0]?.children || [];
+      this.flatBookmarks = this.flattenBookmarks(this.bookmarkTree);
+      return this.bookmarkTree;
     } catch (error) {
       console.error('Error loading bookmarks:', error);
       const container = document.getElementById('bookmarks-list');
@@ -43,6 +44,15 @@ class BookmarkManager {
       }
     }
     return result;
+  }
+
+  toggleFolder(folderId) {
+    if (this.collapsedFolders.has(folderId)) {
+      this.collapsedFolders.delete(folderId);
+    } else {
+      this.collapsedFolders.add(folderId);
+    }
+    this.render();
   }
 
   async addBookmark(url, title, parentId = null) {
@@ -82,14 +92,6 @@ class BookmarkManager {
 
   searchBookmarks(query) {
     this.searchQuery = query.toLowerCase().trim();
-    if (!this.searchQuery) {
-      this.filteredBookmarks = this.bookmarks;
-    } else {
-      this.filteredBookmarks = this.bookmarks.filter(bookmark =>
-        bookmark.title.toLowerCase().includes(this.searchQuery) ||
-        bookmark.url.toLowerCase().includes(this.searchQuery)
-      );
-    }
     this.render();
   }
 
@@ -102,29 +104,75 @@ class BookmarkManager {
     }
   }
 
+  renderTreeNode(node, depth = 0) {
+    const isFolder = !node.url && node.children;
+    const isCollapsed = this.collapsedFolders.has(node.id);
+    const indent = depth * 16;
+
+    if (isFolder) {
+      const hasChildren = node.children && node.children.length > 0;
+      const folderIcon = isCollapsed ? '▶' : '▼';
+      const childrenHtml = !isCollapsed && hasChildren 
+        ? node.children.map(child => this.renderTreeNode(child, depth + 1)).join('')
+        : '';
+      
+      return `
+        <div class="bookmark-folder" style="padding-left: ${indent}px">
+          <div class="folder-header" data-folder-id="${node.id}">
+            <span class="folder-toggle">${folderIcon}</span>
+            <span class="folder-icon">📁</span>
+            <span class="folder-name">${escapeHtml(node.title || 'Untitled')}</span>
+            <span class="folder-count">${node.children?.length || 0}</span>
+          </div>
+          <div class="folder-children ${isCollapsed ? 'collapsed' : ''}">
+            ${childrenHtml}
+          </div>
+        </div>
+      `;
+    } else if (node.url) {
+      // Check search filter
+      if (this.searchQuery) {
+        const matchesSearch = node.title.toLowerCase().includes(this.searchQuery) ||
+                             node.url.toLowerCase().includes(this.searchQuery);
+        if (!matchesSearch) return '';
+      }
+      
+      const faviconUrl = this.getFaviconUrl(node.url);
+      return `
+        <div class="bookmark-item" style="padding-left: ${indent + 20}px" data-url="${escapeHtml(node.url)}">
+          <img src="${faviconUrl}" class="bookmark-favicon" onerror="this.style.display='none'">
+          <div class="bookmark-info">
+            <div class="bookmark-title">${escapeHtml(node.title || node.url)}</div>
+            <div class="bookmark-url">${escapeHtml(node.url)}</div>
+          </div>
+          <button class="bookmark-delete" data-id="${node.id}" title="Delete">×</button>
+        </div>
+      `;
+    }
+    return '';
+  }
+
   async render() {
     const container = document.getElementById('bookmarks-list');
     if (!container) return;
 
-    if (this.filteredBookmarks.length === 0) {
+    if (this.bookmarkTree.length === 0) {
       container.innerHTML = '<div class="empty-state">No bookmarks found</div>';
       return;
     }
 
-    container.innerHTML = this.filteredBookmarks.slice(0, 50).map(bookmark => {
-      const faviconUrl = this.getFaviconUrl(bookmark.url);
-      return `
-        <div class="bookmark-item" data-url="${bookmark.url}">
-          <img src="${faviconUrl}" class="bookmark-favicon" onerror="this.style.display='none'">
-          <div class="bookmark-info">
-            <div class="bookmark-title">${escapeHtml(bookmark.title)}</div>
-            <div class="bookmark-url">${escapeHtml(bookmark.url)}</div>
-          </div>
-          <button class="bookmark-delete" data-id="${bookmark.id}" title="Delete">×</button>
-        </div>
-      `;
-    }).join('');
+    // Render tree view
+    container.innerHTML = this.bookmarkTree.map(node => this.renderTreeNode(node, 0)).join('');
 
+    // Add folder toggle listeners
+    container.querySelectorAll('.folder-header').forEach(header => {
+      header.addEventListener('click', () => {
+        const folderId = header.dataset.folderId;
+        this.toggleFolder(folderId);
+      });
+    });
+
+    // Add bookmark click listeners
     container.querySelectorAll('.bookmark-item').forEach(item => {
       item.addEventListener('click', (e) => {
         if (!e.target.classList.contains('bookmark-delete')) {
@@ -136,6 +184,7 @@ class BookmarkManager {
       });
     });
 
+    // Add delete listeners
     container.querySelectorAll('.bookmark-delete').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();

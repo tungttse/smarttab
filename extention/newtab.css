@@ -914,6 +914,59 @@ body {
   transform: scale(1.1);
 }
 
+/* Bookmark Tree View */
+.bookmark-folder {
+  margin-bottom: 4px;
+}
+
+.folder-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  gap: 8px;
+}
+
+.folder-header:hover {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.folder-toggle {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 12px;
+}
+
+.folder-icon {
+  font-size: 14px;
+}
+
+.folder-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.folder-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.folder-children {
+  margin-top: 4px;
+}
+
+.folder-children.collapsed {
+  display: none;
+}
+
 /* Reminders Section */
 .reminders-section .section-title {
   margin-bottom: 0;
@@ -1604,6 +1657,103 @@ body {
 
 .blocked-sites-list {
   color: var(--text-secondary);
+}
+
+/* ==================== Blocked Sites Section ==================== */
+.blocked-section {
+  grid-column: 1 / -1;
+}
+
+.blocked-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.blocked-input-row {
+  display: flex;
+  gap: 12px;
+}
+
+.block-input {
+  flex: 1;
+  padding: 12px 16px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: var(--transition-fast);
+}
+
+.block-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.block-input::placeholder {
+  color: var(--text-muted);
+}
+
+.add-block-btn {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.add-block-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(244, 63, 94, 0.4);
+}
+
+.blocked-domains-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.blocked-domains-list .empty-message {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.blocked-domain-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: var(--radius-sm);
+}
+
+.blocked-domain-name {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.unblock-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: var(--transition-fast);
+}
+
+.unblock-btn:hover {
+  background: rgba(244, 63, 94, 0.2);
+  color: #f43f5e;
 }
 
 /* ==================== Chart Section ==================== */

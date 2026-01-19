@@ -13,6 +13,12 @@ class BlockedPage {
     // Display domain
     this.displayDomain();
     
+    // Record this blocked attempt
+    await this.recordAttempt();
+    
+    // Load and display attempts
+    await this.loadAttempts();
+    
     // Setup event listeners
     this.setupEventListeners();
   }
@@ -49,6 +55,68 @@ class BlockedPage {
     if (domainElement && this.domain) {
       domainElement.textContent = this.domain;
     }
+  }
+
+  async recordAttempt() {
+    if (!this.domain || this.domain === 'Unknown Domain') return;
+    
+    try {
+      await chrome.runtime.sendMessage({
+        action: 'recordBlockedAttempt',
+        domain: this.domain
+      });
+    } catch (error) {
+      console.error('Error recording attempt:', error);
+    }
+  }
+
+  async loadAttempts() {
+    if (!this.domain || this.domain === 'Unknown Domain') return;
+    
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getBlockedAttempts',
+        domain: this.domain
+      });
+      
+      if (response && response.success) {
+        this.displayAttempts(response.attempts);
+      }
+    } catch (error) {
+      console.error('Error loading attempts:', error);
+    }
+  }
+
+  displayAttempts(attemptData) {
+    const countEl = document.getElementById('attempts-count');
+    const historyEl = document.getElementById('attempts-history');
+    
+    if (countEl) {
+      countEl.textContent = attemptData.count || 0;
+    }
+    
+    if (historyEl && attemptData.attempts && attemptData.attempts.length > 0) {
+      // Show last 5 attempts
+      const recentAttempts = attemptData.attempts.slice(-5).reverse();
+      historyEl.innerHTML = `
+        <div class="history-title">Recent attempts:</div>
+        ${recentAttempts.map(a => `
+          <div class="history-item">${this.formatTime(a.timestamp)}</div>
+        `).join('')}
+      `;
+    }
+  }
+
+  formatTime(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   setupEventListeners() {

@@ -228,6 +228,28 @@ class SmartTabApp {
       });
     });
 
+    // Block domain input
+    const blockInput = document.getElementById('block-domain-input');
+    const addBlockBtn = document.getElementById('add-block-btn');
+    
+    const addBlockedDomain = async () => {
+      const domain = blockInput.value.trim().toLowerCase();
+      if (domain) {
+        await this.blockedDomainManager.blockDomain(domain);
+        this.blockedDomainManager.render();
+        blockInput.value = '';
+      }
+    };
+
+    if (addBlockBtn && blockInput) {
+      addBlockBtn.addEventListener('click', addBlockedDomain);
+      blockInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          addBlockedDomain();
+        }
+      });
+    }
+
     // Todo input
     const todoInput = document.getElementById('todo-input');
     const addTodoBtn = document.getElementById('add-todo-btn');

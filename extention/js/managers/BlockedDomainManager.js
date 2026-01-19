@@ -69,5 +69,32 @@ class BlockedDomainManager {
 
   async init() {
     await this.loadBlockedDomains();
+    this.render();
+  }
+
+  render() {
+    const container = document.getElementById('blocked-domains-list');
+    if (!container) return;
+
+    if (this.blockedDomains.size === 0) {
+      container.innerHTML = '<p class="empty-message">No blocked sites yet</p>';
+      return;
+    }
+
+    container.innerHTML = Array.from(this.blockedDomains).map(domain => `
+      <div class="blocked-domain-item">
+        <span class="blocked-domain-name">${domain}</span>
+        <button class="unblock-btn" data-domain="${domain}" title="Unblock">✕</button>
+      </div>
+    `).join('');
+
+    // Add unblock event listeners
+    container.querySelectorAll('.unblock-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const domain = e.target.dataset.domain;
+        await this.unblockDomain(domain);
+        this.render();
+      });
+    });
   }
 }
